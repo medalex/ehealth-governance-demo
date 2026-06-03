@@ -1,0 +1,54 @@
+# Local development override — builds images from local source repos.
+#
+# Expected layout:
+#   c:\dev\
+#     ehealth-demo\                      ← parent folder
+#       ehealth-governance-demo\         ← this repo (here)
+#       ehealth-patient\
+#       ehealth-lab\
+#       ehealth-hospital\
+#       ehealth-pharmacy\
+#       ehealth-zkp-prover\
+#     mfssia\mfssia-ehealth\             ← outside ehealth-demo
+#     dkg-node\dkg-local\               ← outside ehealth-demo
+#
+# Usage: docker compose up --build
+
+version: "3.9"
+
+services:
+  dkg-node:
+    build:
+      context: ../../../dkg-node/dkg-local
+      dockerfile: Dockerfile.otnode
+    image: dkg-node:local
+
+  mfssia-ehealth:
+    build:
+      context: ../../../mfssia/mfssia-ehealth
+    image: mfssia-ehealth:local
+
+  zkp-prover:
+    build:
+      context: ../ehealth-zkp-prover
+    image: ehealth-zkp-prover:local
+
+  patient:
+    build:
+      context: ../ehealth-patient
+    image: ehealth-patient:local
+
+  lab:
+    build:
+      context: ../ehealth-lab
+    image: ehealth-lab:local
+
+  hospital:
+    build:
+      context: ../ehealth-hospital
+    image: ehealth-hospital:local
+
+  pharmacy:
+    build:
+      context: ../ehealth-pharmacy
+    image: ehealth-pharmacy:local

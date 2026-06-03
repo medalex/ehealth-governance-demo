@@ -1,0 +1,106 @@
+version: "3.9"
+
+networks:
+  ehealth-net:
+    driver: bridge
+
+services:
+
+  # ── DKG Node ─────────────────────────────────────────────────────────────────
+  dkg-node:
+    image: ${DKG_NODE_IMAGE}
+    ports:
+      - "8900:8900"
+      - "8545:8545"
+    mem_limit: 8g
+    networks:
+      - ehealth-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8900/info"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+  # ── mfssia-ehealth (DKG client + governance API) ─────────────────────────────
+  mfssia-ehealth:
+    image: ${MFSSIA_EHEALTH_IMAGE}
+    ports:
+      - "4000:4000"
+    environment:
+      APP_PORT: 4000
+      DKG_HOSTNAME: http://dkg-node
+      DKG_PORT: 8900
+      PUBLIC_KEY: ${WALLET_PUBLIC_KEY}
+      PRIVATE_KEY: ${WALLET_PRIVATE_KEY}
+      DATABASE_URL: ${MFSSIA_DB_URL}
+    networks:
+      - ehealth-net
+    depends_on:
+      dkg-node:
+        condition: service_healthy
+
+  # ── ZKP Prover ───────────────────────────────────────────────────────────────
+  zkp-prover:
+    image: ${ZKP_PROVER_IMAGE}
+    ports:
+      - "3005:3005"
+    environment:
+      PORT: 3005
+      MFSSIA_URL: http://mfssia-ehealth:4000/api
+    networks:
+      - ehealth-net
+    depends_on:
+      - mfssia-ehealth
+
+  # ── Legacy Systems ────────────────────────────────────────────────────────────
+  patient:
+    image: ${PATIENT_SERVICE_IMAGE}
+    ports:
+      - "3001:3001"
+    environment:
+      ASPNETCORE_URLS: http://+:3001
+      MFSSIA_URL: http://mfssia-ehealth:4000/api
+    networks:
+      - ehealth-net
+
+  lab:
+    image: ${LAB_SERVICE_IMAGE}
+    ports:
+      - "3002:3002"
+    environment:
+      ASPNETCORE_URLS: http://+:3002
+      MFSSIA_URL: http://mfssia-ehealth:4000/api
+    networks:
+      - ehealth-net
+
+  hospital:
+    image: ${HOSPITAL_SERVICE_IMAGE}
+    ports:
+      - "3003:3003"
+    environment:
+      ASPNETCORE_URLS: http://+:3003
+      PATIENT_SERVICE_URL: http://patient:3001
+      LAB_SERVICE_URL: http://lab:3002
+      ZKP_PROVER_URL: http://zkp-prover:3005
+      MFSSIA_URL: http://mfssia-ehealth:4000/api
+    networks:
+      - ehealth-net
+    depends_on:
+      - patient
+      - lab
+      - zkp-prover
+
+  pharmacy:
+    image: ${PHARMACY_SERVICE_IMAGE}
+    ports:
+      - "3004:3004"
+    environment:
+      ASPNETCORE_URLS: http://+:3004
+      HOSPITAL_SERVICE_URL: http://hospital:3003
+      ZKP_PROVER_URL: http://zkp-prover:3005
+    networks:
+      - ehealth-net
+    depends_on:
+      - hospital
+      - zkp-prover
