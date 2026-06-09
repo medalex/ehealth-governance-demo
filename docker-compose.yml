@@ -22,6 +22,21 @@ services:
       retries: 10
       start_period: 300s
 
+  # ── PostgreSQL (for mfssia-ehealth) ──────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mfssia
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    networks:
+      - ehealth-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   # ── mfssia-ehealth (DKG client + governance API) ─────────────────────────────
   mfssia-ehealth:
     image: ${MFSSIA_EHEALTH_IMAGE}
@@ -33,11 +48,14 @@ services:
       DKG_PORT: 8900
       PUBLIC_KEY: ${WALLET_PUBLIC_KEY}
       PRIVATE_KEY: ${WALLET_PRIVATE_KEY}
-      DATABASE_URL: ${MFSSIA_DB_URL}
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mfssia?sslmode=disable
+      DATABASE_MIGRATIONS_RUN: "true"
     networks:
       - ehealth-net
     depends_on:
       dkg-node:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
 
   # ── ZKP Prover ───────────────────────────────────────────────────────────────
