@@ -78,6 +78,8 @@ services:
       MFSSIA_URL: http://mfssia-ehealth:4000/api
     networks:
       - ehealth-net
+    depends_on:
+      - mfssia-ehealth
 
   lab:
     image: ${LAB_SERVICE_IMAGE}
@@ -88,6 +90,8 @@ services:
       MFSSIA_URL: http://mfssia-ehealth:4000/api
     networks:
       - ehealth-net
+    depends_on:
+      - mfssia-ehealth
 
   hospital:
     image: ${HOSPITAL_SERVICE_IMAGE}
@@ -102,6 +106,7 @@ services:
     networks:
       - ehealth-net
     depends_on:
+      - mfssia-ehealth
       - patient
       - lab
       - zkp-prover
