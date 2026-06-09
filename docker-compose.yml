@@ -39,13 +39,16 @@ services:
 
   # ── mfssia-ehealth (DKG client + governance API) ─────────────────────────────
   mfssia-ehealth:
-    image: ${MFSSIA_EHEALTH_IMAGE}
+    image: mfssia-ehealth:local
     ports:
       - "4000:4000"
     environment:
       APP_PORT: 4000
       DKG_HOSTNAME: http://dkg-node
       DKG_PORT: 8900
+      DKG_BLOCKCHAIN_NAME: hardhat1:31337
+      DKG_BLOCKCHAIN_RPC: http://dkg-node:18545
+      DKG_ENVIRONMENT: development
       PUBLIC_KEY: ${WALLET_PUBLIC_KEY}
       PRIVATE_KEY: ${WALLET_PRIVATE_KEY}
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mfssia?sslmode=disable
@@ -57,6 +60,39 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+
+  # ── Frontend UIs ─────────────────────────────────────────────────────────────
+  patient-app:
+    build:
+      context: ../ehealth-patient-app
+    ports:
+      - "8001:80"
+    networks:
+      - ehealth-net
+
+  lab-app:
+    build:
+      context: ../ehealth-lab-app
+    ports:
+      - "8002:80"
+    networks:
+      - ehealth-net
+
+  hospital-app:
+    build:
+      context: ../ehealth-hospital-app
+    ports:
+      - "8003:80"
+    networks:
+      - ehealth-net
+
+  pharmacy-app:
+    build:
+      context: ../ehealth-pharmacy-app
+    ports:
+      - "8004:80"
+    networks:
+      - ehealth-net
 
   # ── ZKP Prover ───────────────────────────────────────────────────────────────
   zkp-prover:
@@ -83,7 +119,7 @@ services:
         condition: service_healthy
 
   lab:
-    image: ${LAB_SERVICE_IMAGE}
+    image: ehealth-lab-api:local
     ports:
       - "3002:3002"
     environment:
@@ -96,7 +132,7 @@ services:
         condition: service_healthy
 
   hospital:
-    image: ${HOSPITAL_SERVICE_IMAGE}
+    image: ehealth-hospital-api:local
     ports:
       - "3003:3003"
     environment:
