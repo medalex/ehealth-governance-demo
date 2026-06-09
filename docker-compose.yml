@@ -79,7 +79,8 @@ services:
     networks:
       - ehealth-net
     depends_on:
-      - mfssia-ehealth
+      dkg-node:
+        condition: service_healthy
 
   lab:
     image: ${LAB_SERVICE_IMAGE}
@@ -91,7 +92,8 @@ services:
     networks:
       - ehealth-net
     depends_on:
-      - mfssia-ehealth
+      dkg-node:
+        condition: service_healthy
 
   hospital:
     image: ${HOSPITAL_SERVICE_IMAGE}
@@ -106,10 +108,14 @@ services:
     networks:
       - ehealth-net
     depends_on:
-      - mfssia-ehealth
-      - patient
-      - lab
-      - zkp-prover
+      dkg-node:
+        condition: service_healthy
+      patient:
+        condition: service_started
+      lab:
+        condition: service_started
+      zkp-prover:
+        condition: service_started
 
   pharmacy:
     image: ${PHARMACY_SERVICE_IMAGE}
@@ -122,5 +128,9 @@ services:
     networks:
       - ehealth-net
     depends_on:
-      - hospital
-      - zkp-prover
+      dkg-node:
+        condition: service_healthy
+      hospital:
+        condition: service_started
+      zkp-prover:
+        condition: service_started
