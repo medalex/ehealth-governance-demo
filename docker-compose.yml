@@ -39,7 +39,7 @@ services:
 
   # ── mfssia-ehealth (DKG client + governance API) ─────────────────────────────
   mfssia-ehealth:
-    image: mfssia-ehealth:local
+    image: ${MFSSIA_EHEALTH_IMAGE}
     ports:
       - "4000:4000"
     environment:
@@ -62,33 +62,35 @@ services:
         condition: service_healthy
 
   # ── Frontend UIs ─────────────────────────────────────────────────────────────
+  # Behind the "frontend" profile until images are published to ghcr.io:
+  #   docker compose --profile frontend up -d
   patient-app:
-    build:
-      context: ../ehealth-patient-app
+    image: ${PATIENT_APP_IMAGE}
+    profiles: ["frontend"]
     ports:
       - "8001:80"
     networks:
       - ehealth-net
 
   lab-app:
-    build:
-      context: ../ehealth-lab-app
+    image: ${LAB_APP_IMAGE}
+    profiles: ["frontend"]
     ports:
       - "8002:80"
     networks:
       - ehealth-net
 
   hospital-app:
-    build:
-      context: ../ehealth-hospital-app
+    image: ${HOSPITAL_APP_IMAGE}
+    profiles: ["frontend"]
     ports:
       - "8003:80"
     networks:
       - ehealth-net
 
   pharmacy-app:
-    build:
-      context: ../ehealth-pharmacy-app
+    image: ${PHARMACY_APP_IMAGE}
+    profiles: ["frontend"]
     ports:
       - "8004:80"
     networks:
@@ -119,7 +121,7 @@ services:
         condition: service_healthy
 
   lab:
-    image: ehealth-lab-api:local
+    image: ${LAB_SERVICE_IMAGE}
     ports:
       - "3002:3002"
     environment:
@@ -132,7 +134,7 @@ services:
         condition: service_healthy
 
   hospital:
-    image: ehealth-hospital-api:local
+    image: ${HOSPITAL_SERVICE_IMAGE}
     ports:
       - "3003:3003"
     environment:
