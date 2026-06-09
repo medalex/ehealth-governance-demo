@@ -47,11 +47,8 @@ services:
       - "3005:3005"
     environment:
       PORT: 3005
-      MFSSIA_URL: http://mfssia-ehealth:4000/api
     networks:
       - ehealth-net
-    depends_on:
-      - mfssia-ehealth
 
   # ── Legacy Systems ────────────────────────────────────────────────────────────
   patient:
