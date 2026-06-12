@@ -102,8 +102,8 @@ services:
     networks:
       - ehealth-net
 
-  # ── Legacy Systems ────────────────────────────────────────────────────────────
-  patient:
+  # ── Backend APIs ─────────────────────────────────────────────────────────────
+  patient-api:
     image: ${PATIENT_SERVICE_IMAGE}
     ports:
       - "3001:3001"
@@ -116,7 +116,7 @@ services:
       dkg-node:
         condition: service_healthy
 
-  lab:
+  lab-api:
     image: ${LAB_SERVICE_IMAGE}
     ports:
       - "3002:3002"
@@ -129,14 +129,14 @@ services:
       dkg-node:
         condition: service_healthy
 
-  hospital:
+  hospital-api:
     image: ${HOSPITAL_SERVICE_IMAGE}
     ports:
       - "3003:3003"
     environment:
       ASPNETCORE_URLS: http://+:3003
-      PATIENT_SERVICE_URL: http://patient:3001
-      LAB_SERVICE_URL: http://lab:3002
+      PATIENT_SERVICE_URL: http://patient-api:3001
+      LAB_SERVICE_URL: http://lab-api:3002
       ZKP_PROVER_URL: http://zkp-prover:3005
       MFSSIA_URL: http://mfssia-ehealth:4000/api
     networks:
@@ -144,27 +144,27 @@ services:
     depends_on:
       dkg-node:
         condition: service_healthy
-      patient:
+      patient-api:
         condition: service_started
-      lab:
+      lab-api:
         condition: service_started
       zkp-prover:
         condition: service_started
 
-  pharmacy:
+  pharmacy-api:
     image: ${PHARMACY_SERVICE_IMAGE}
     ports:
       - "3004:3004"
     environment:
       ASPNETCORE_URLS: http://+:3004
-      HOSPITAL_SERVICE_URL: http://hospital:3003
+      HOSPITAL_SERVICE_URL: http://hospital-api:3003
       ZKP_PROVER_URL: http://zkp-prover:3005
     networks:
       - ehealth-net
     depends_on:
       dkg-node:
         condition: service_healthy
-      hospital:
+      hospital-api:
         condition: service_started
       zkp-prover:
         condition: service_started
