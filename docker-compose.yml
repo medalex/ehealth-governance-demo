@@ -11,7 +11,7 @@ services:
     image: ${DKG_NODE_IMAGE}
     ports:
       - "8900:8900"
-      - "8545:8545"
+      - "8545:9545"
     mem_limit: 8g
     networks:
       - ehealth-net
