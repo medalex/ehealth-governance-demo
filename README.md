@@ -40,7 +40,7 @@ Patient Portal  Lab System  Hospital System  Pharmacy System
 ### One command
 
 ```bash
-docker compose -f docker-compose.demo.yml up -d
+docker compose up -d
 ```
 
 All images are pulled automatically from `ghcr.io/medalex/*` — no source code needed.
@@ -53,7 +53,7 @@ The startup order is managed automatically:
 
 Check that everything is up:
 ```bash
-docker compose -f docker-compose.demo.yml ps
+docker compose ps
 ```
 
 ---
@@ -126,14 +126,14 @@ Open `http://localhost:3000/governance.html` to:
 
 ```bash
 # Check all demo services
-docker compose -f docker-compose.demo.yml ps
+docker compose ps
 
 # Stream logs from hospital API
 docker compose -f docker-compose.demo.yml logs -f hospital-api
 
 # Pull latest images and restart
 docker compose -f docker-compose.demo.yml pull
-docker compose -f docker-compose.demo.yml up -d
+docker compose up -d
 
 # Stop everything
 docker compose -f docker-compose.demo.yml down
