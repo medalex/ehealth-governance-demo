@@ -67,7 +67,7 @@ services:
     ports:
       - "3007:80"
 
-  governance:
+  ehealth-governance:
     image: ghcr.io/medalex/ehealth-demo-ui:latest
     pull_policy: always
     ports:
