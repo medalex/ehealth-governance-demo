@@ -1,45 +1,37 @@
-version: "3.9"
-
-networks:
-  ehealth-net:
-    driver: bridge
-
 services:
 
-  # ── DKG Node ─────────────────────────────────────────────────────────────────
+  # ── DKG blockchain node ───────────────────────────────────────────────────────
   dkg-node:
-    image: ${DKG_NODE_IMAGE}
+    image: ghcr.io/medalex/dkg-node:latest
+    pull_policy: always
     ports:
       - "8900:8900"
       - "8545:9545"
     mem_limit: 8g
-    networks:
-      - ehealth-net
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8900/info"]
-      interval: 30s
+      interval: 15s
       timeout: 10s
-      retries: 10
-      start_period: 300s
+      retries: 20
+      start_period: 120s
 
-  # ── PostgreSQL (for mfssia-ehealth) ──────────────────────────────────────────
+  # ── PostgreSQL (for mfssia) ───────────────────────────────────────────────────
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: mfssia
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-    networks:
-      - ehealth-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
       timeout: 5s
       retries: 10
 
-  # ── mfssia-ehealth (DKG client + governance API) ─────────────────────────────
+  # ── MFSSIA — DKG client + governance API ─────────────────────────────────────
   mfssia-ehealth:
-    image: ${MFSSIA_EHEALTH_IMAGE}
+    image: ghcr.io/medalex/mfssia-ehealth:latest
+    pull_policy: always
     ports:
       - "4000:4000"
     environment:
@@ -49,122 +41,114 @@ services:
       DKG_BLOCKCHAIN_NAME: hardhat1:31337
       DKG_BLOCKCHAIN_RPC: http://dkg-node:8545
       DKG_ENVIRONMENT: development
-      PUBLIC_KEY: ${WALLET_PUBLIC_KEY}
-      PRIVATE_KEY: ${WALLET_PRIVATE_KEY}
+      PUBLIC_KEY: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+      PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mfssia?sslmode=disable
       DATABASE_MIGRATIONS_RUN: "true"
-    networks:
-      - ehealth-net
     depends_on:
       dkg-node:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
-  # ── Frontend UIs ─────────────────────────────────────────────────────────────
-  # Behind the "frontend" profile until images are published to ghcr.io:
-  #   docker compose --profile frontend up -d
-  patient-app:
-    image: ${PATIENT_APP_IMAGE}
-    ports:
-      - "8001:80"
-    networks:
-      - ehealth-net
-
-  lab-app:
-    image: ${LAB_APP_IMAGE}
-    ports:
-      - "8002:80"
-    networks:
-      - ehealth-net
-
-  hospital-app:
-    image: ${HOSPITAL_APP_IMAGE}
-    ports:
-      - "8003:80"
-    networks:
-      - ehealth-net
-
-  pharmacy-app:
-    image: ${PHARMACY_APP_IMAGE}
-    ports:
-      - "8004:80"
-    networks:
-      - ehealth-net
-
-  # ── ZKP Prover ───────────────────────────────────────────────────────────────
+  # ── ZKP Prover ────────────────────────────────────────────────────────────────
   zkp-prover:
-    image: ${ZKP_PROVER_IMAGE}
+    image: ghcr.io/medalex/ehealth-zkp-prover:latest
+    pull_policy: always
     ports:
       - "3005:3005"
-    environment:
-      PORT: 3005
-    networks:
-      - ehealth-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3005/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
-  # ── Backend APIs ─────────────────────────────────────────────────────────────
+  # ── Backend APIs ──────────────────────────────────────────────────────────────
   patient-api:
-    image: ${PATIENT_SERVICE_IMAGE}
+    image: ghcr.io/medalex/ehealth-patient-api:latest
+    pull_policy: always
     ports:
       - "3001:3001"
-    environment:
-      ASPNETCORE_URLS: http://+:3001
-      MFSSIA_URL: http://mfssia-ehealth:4000/api
-    networks:
-      - ehealth-net
     depends_on:
-      dkg-node:
+      mfssia-ehealth:
         condition: service_healthy
 
   lab-api:
-    image: ${LAB_SERVICE_IMAGE}
+    image: ghcr.io/medalex/ehealth-lab-api:latest
+    pull_policy: always
     ports:
       - "3002:3002"
     environment:
-      ASPNETCORE_URLS: http://+:3002
-      MFSSIA_URL: http://mfssia-ehealth:4000/api
-    networks:
-      - ehealth-net
+      MfssiaUrl: "http://mfssia-ehealth:4000/api"
     depends_on:
-      dkg-node:
+      mfssia-ehealth:
         condition: service_healthy
 
   hospital-api:
-    image: ${HOSPITAL_SERVICE_IMAGE}
+    image: ghcr.io/medalex/ehealth-hospital-api:latest
+    pull_policy: always
     ports:
       - "3003:3003"
     environment:
-      ASPNETCORE_URLS: http://+:3003
-      PATIENT_SERVICE_URL: http://patient-api:3001
-      LAB_SERVICE_URL: http://lab-api:3002
-      ZKP_PROVER_URL: http://zkp-prover:3005
-      MFSSIA_URL: http://mfssia-ehealth:4000/api
-    networks:
-      - ehealth-net
+      ZkpProverUrl: "http://zkp-prover:3005"
+      LabServiceUrl: "http://lab-api:3002"
+      MfssiaUrl: "http://mfssia-ehealth:4000/api"
     depends_on:
-      dkg-node:
+      mfssia-ehealth:
         condition: service_healthy
-      patient-api:
+      zkp-prover:
         condition: service_started
       lab-api:
         condition: service_started
-      zkp-prover:
-        condition: service_started
 
   pharmacy-api:
-    image: ${PHARMACY_SERVICE_IMAGE}
+    image: ghcr.io/medalex/ehealth-pharmacy-api:latest
+    pull_policy: always
     ports:
       - "3004:3004"
     environment:
-      ASPNETCORE_URLS: http://+:3004
-      HOSPITAL_SERVICE_URL: http://hospital-api:3003
-      ZKP_PROVER_URL: http://zkp-prover:3005
-    networks:
-      - ehealth-net
+      ZkpProverUrl: "http://zkp-prover:3005"
     depends_on:
-      dkg-node:
+      mfssia-ehealth:
         condition: service_healthy
-      hospital-api:
-        condition: service_started
       zkp-prover:
         condition: service_started
+
+  # ── Frontend apps ─────────────────────────────────────────────────────────────
+  patient-app:
+    image: ghcr.io/medalex/ehealth-patient-app:latest
+    pull_policy: always
+    ports:
+      - "3008:80"
+
+  lab-app:
+    image: ghcr.io/medalex/ehealth-lab-app:latest
+    pull_policy: always
+    ports:
+      - "3009:80"
+
+  hospital-app:
+    image: ghcr.io/medalex/ehealth-hospital-app:latest
+    pull_policy: always
+    ports:
+      - "3006:80"
+
+  pharmacy-app:
+    image: ghcr.io/medalex/ehealth-pharmacy-app:latest
+    pull_policy: always
+    ports:
+      - "3007:80"
+
+  # ── Monitor + Governance UI ───────────────────────────────────────────────────
+  ehealth-governance:
+    image: ghcr.io/medalex/ehealth-demo-ui:latest
+    pull_policy: always
+    ports:
+      - "3000:80"
