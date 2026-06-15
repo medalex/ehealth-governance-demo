@@ -37,28 +37,24 @@ Patient Portal  Lab System  Hospital System  Pharmacy System
 
 ## Quick Start
 
-### Step 1 — Start DKG infrastructure (this repo)
-
-```bash
-docker compose up -d
-```
-
-Wait ~2 minutes for the DKG node to initialise (5 blockchain nodes need to come online).
-
-Check readiness:
-```bash
-curl http://localhost:4000/api/api/infrastructure/node-info
-```
-
-### Step 2 — Start demo applications
-
-Download [`docker-compose.demo.yml`](https://raw.githubusercontent.com/medalex/ehealth-governance-demo/main/docker-compose.demo.yml) to any directory, then:
+### One command
 
 ```bash
 docker compose -f docker-compose.demo.yml up -d
 ```
 
 All images are pulled automatically from `ghcr.io/medalex/*` — no source code needed.
+
+The startup order is managed automatically:
+- `postgres` and `dkg-node` start first
+- `mfssia-ehealth` waits until DKG node is healthy (~2 min)
+- All APIs wait until `mfssia-ehealth` is ready
+- Frontend apps start immediately
+
+Check that everything is up:
+```bash
+docker compose -f docker-compose.demo.yml ps
+```
 
 ---
 
