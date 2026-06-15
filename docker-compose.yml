@@ -1,19 +1,33 @@
 services:
 
+  # ── Autoheal — перезапускает unhealthy контейнеры с меткой autoheal=true ───────
+  autoheal:
+    image: willfarrell/autoheal:latest
+    restart: always
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      AUTOHEAL_INTERVAL: 15
+      AUTOHEAL_START_PERIOD: 300
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
   # ── DKG blockchain node ───────────────────────────────────────────────────────
   dkg-node:
     image: ghcr.io/medalex/dkg-node:latest
     pull_policy: always
+    restart: unless-stopped
+    labels:
+      autoheal: "true"
     ports:
       - "8900:8900"
       - "8545:8545"
     mem_limit: 8g
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8900/info"]
-      interval: 15s
+      test: ["CMD-SHELL", "curl -f http://localhost:8900/info && curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}' | grep -q '0x7a69'"]
+      interval: 20s
       timeout: 10s
-      retries: 20
-      start_period: 120s
+      retries: 3
+      start_period: 180s
 
   # ── PostgreSQL (for mfssia) ───────────────────────────────────────────────────
   postgres:
