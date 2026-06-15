@@ -101,9 +101,13 @@ services:
       - "3002:3002"
     environment:
       MfssiaUrl: "http://mfssia-ehealth:4000/api"
+      PatientApiUrl: "http://patient-api:3001"
+      LabOrganizationId: "lab-1"
     depends_on:
       mfssia-ehealth:
         condition: service_healthy
+      patient-api:
+        condition: service_started
 
   hospital-api:
     image: ghcr.io/medalex/ehealth-hospital-api:latest
@@ -114,12 +118,16 @@ services:
       ZkpProverUrl: "http://zkp-prover:3005"
       LabServiceUrl: "http://lab-api:3002"
       MfssiaUrl: "http://mfssia-ehealth:4000/api"
+      PatientApiUrl: "http://patient-api:3001"
+      HospitalId: "hospital-1"
     depends_on:
       mfssia-ehealth:
         condition: service_healthy
       zkp-prover:
         condition: service_started
       lab-api:
+        condition: service_started
+      patient-api:
         condition: service_started
 
   pharmacy-api:
@@ -129,10 +137,14 @@ services:
       - "3004:3004"
     environment:
       ZkpProverUrl: "http://zkp-prover:3005"
+      PatientApiUrl: "http://patient-api:3001"
+      PharmacyOrganizationId: "pharmacy-1"
     depends_on:
       mfssia-ehealth:
         condition: service_healthy
       zkp-prover:
+        condition: service_started
+      patient-api:
         condition: service_started
 
   # ── Frontend apps ─────────────────────────────────────────────────────────────
