@@ -50,24 +50,15 @@ Check readiness:
 curl http://localhost:4000/api/api/infrastructure/node-info
 ```
 
-### Step 2 — Clone demo app repos
+### Step 2 — Start demo applications
 
-```bash
-git clone https://github.com/medalex/ehealth-patient-app
-git clone https://github.com/medalex/ehealth-lab-app
-git clone https://github.com/medalex/ehealth-hospital-app
-git clone https://github.com/medalex/ehealth-pharmacy-app
-```
-
-Place all repos in the same parent directory as this one.
-
-### Step 3 — Start demo applications
-
-Download [`docker-compose.demo.yml`](https://github.com/medalex/ehealth-governance-demo) to the same parent directory, then:
+Download [`docker-compose.demo.yml`](https://raw.githubusercontent.com/medalex/ehealth-governance-demo/main/docker-compose.demo.yml) to any directory, then:
 
 ```bash
 docker compose -f docker-compose.demo.yml up -d
 ```
+
+All images are pulled automatically from `ghcr.io/medalex/*` — no source code needed.
 
 ---
 

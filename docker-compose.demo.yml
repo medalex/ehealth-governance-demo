@@ -1,0 +1,74 @@
+services:
+
+  patient-api:
+    image: ghcr.io/medalex/ehealth-patient-api:latest
+    pull_policy: always
+    ports:
+      - "3001:3001"
+
+  lab-api:
+    image: ghcr.io/medalex/ehealth-lab-api:latest
+    pull_policy: always
+    ports:
+      - "3002:3002"
+    environment:
+      MfssiaUrl: "http://host.docker.internal:4000/api"
+
+  zkp-prover:
+    image: ghcr.io/medalex/ehealth-zkp-prover:latest
+    pull_policy: always
+    ports:
+      - "3005:3005"
+
+  hospital-api:
+    image: ghcr.io/medalex/ehealth-hospital-api:latest
+    pull_policy: always
+    ports:
+      - "3003:3003"
+    environment:
+      ZkpProverUrl: "http://zkp-prover:3005"
+      LabServiceUrl: "http://lab-api:3002"
+      MfssiaUrl: "http://host.docker.internal:4000/api"
+    depends_on:
+      - zkp-prover
+      - lab-api
+
+  pharmacy-api:
+    image: ghcr.io/medalex/ehealth-pharmacy-api:latest
+    pull_policy: always
+    ports:
+      - "3004:3004"
+    environment:
+      ZkpProverUrl: "http://zkp-prover:3005"
+    depends_on:
+      - zkp-prover
+
+  patient-app:
+    image: ghcr.io/medalex/ehealth-patient-app:latest
+    pull_policy: always
+    ports:
+      - "3008:80"
+
+  lab-app:
+    image: ghcr.io/medalex/ehealth-lab-app:latest
+    pull_policy: always
+    ports:
+      - "3009:80"
+
+  hospital-app:
+    image: ghcr.io/medalex/ehealth-hospital-app:latest
+    pull_policy: always
+    ports:
+      - "3006:80"
+
+  pharmacy-app:
+    image: ghcr.io/medalex/ehealth-pharmacy-app:latest
+    pull_policy: always
+    ports:
+      - "3007:80"
+
+  ehealth-portal:
+    image: ghcr.io/medalex/ehealth-demo-ui:latest
+    pull_policy: always
+    ports:
+      - "3000:80"
