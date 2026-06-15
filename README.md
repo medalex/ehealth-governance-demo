@@ -2,11 +2,6 @@
 
 A blockchain-based electronic health record demo using OriginTrail DKG v8, Zero-Knowledge Proofs (Groth16), and a self-sovereign identity layer (MFSSIA).
 
-The system is split into two Docker Compose stacks:
-
-- **`docker-compose.yml`** (this repo) — DKG blockchain infrastructure
-- **`docker-compose.demo.yml`** — eHealth application services
-
 ---
 
 ## Architecture
@@ -60,7 +55,7 @@ docker compose ps
 
 ## Services
 
-### DKG Infrastructure (`docker-compose.yml`)
+### Infrastructure
 
 | Service | Port | Description |
 |---|---|---|
@@ -68,9 +63,7 @@ docker compose ps
 | `postgres` | 5432 | PostgreSQL database for MFSSIA |
 | `mfssia-ehealth` | 4000 | Governance API — publishes clinical policies and doctor credentials to DKG, runs SPARQL queries on the knowledge graph |
 
-### eHealth Applications (`docker-compose.demo.yml`)
-
-#### APIs
+### APIs
 
 | Service | Port | Description |
 |---|---|---|
@@ -80,7 +73,7 @@ docker compose ps
 | `pharmacy-api` | 3004 | Pharmacy service — receives prescriptions from hospital, verifies ZKP proof before dispensing |
 | `zkp-prover` | 3005 | Zero-Knowledge Proof engine (Groth16 / Circom). Validates prescriptions against allergy records, drug approval list, and dosage policies without revealing patient data |
 
-#### Frontend Apps
+### Frontend Apps
 
 | Service | Port | Description |
 |---|---|---|
@@ -125,17 +118,16 @@ Open `http://localhost:3000/governance.html` to:
 ## Useful Commands
 
 ```bash
-# Check all demo services
+# Check all services
 docker compose ps
 
-# Stream logs from hospital API
-docker compose -f docker-compose.demo.yml logs -f hospital-api
+# Stream logs from a service
+docker compose logs -f hospital-api
 
 # Pull latest images and restart
-docker compose -f docker-compose.demo.yml pull
+docker compose pull
 docker compose up -d
 
 # Stop everything
-docker compose -f docker-compose.demo.yml down
 docker compose down
 ```
