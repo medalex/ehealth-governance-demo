@@ -86,7 +86,7 @@ services:
 
   # ── On-chain decision registry (dedicated EVM, separate from the DKG chain) ──────
   decision-registry:
-    image: ghcr.io/medalex/ehealth-decision-registry:latest
+    image: ghcr.io/medalex/ehealth-evm:latest
     pull_policy: always
     ports:
       - "8546:8546"   # dedicated EVM RPC
