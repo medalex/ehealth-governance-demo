@@ -84,6 +84,20 @@ services:
       retries: 5
       start_period: 15s
 
+  # ── On-chain decision registry (dedicated EVM, separate from the DKG chain) ──────
+  decision-registry:
+    image: ghcr.io/medalex/ehealth-decision-registry:latest
+    pull_policy: always
+    ports:
+      - "8546:8546"   # dedicated EVM RPC
+      - "3010:3010"   # HTTP API
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3010/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
   # ── Backend APIs ──────────────────────────────────────────────────────────────
   patient-api:
     image: ghcr.io/medalex/ehealth-patient-api:latest
@@ -138,6 +152,8 @@ services:
     environment:
       ZkpProverUrl: "http://zkp-prover:3005"
       PatientApiUrl: "http://patient-api:3001"
+      MfssiaUrl: "http://mfssia-ehealth:4000/api"
+      DecisionRegistryUrl: "http://decision-registry:3010"
       PharmacyOrganizationId: "pharmacy-1"
     depends_on:
       mfssia-ehealth:
@@ -145,6 +161,8 @@ services:
       zkp-prover:
         condition: service_started
       patient-api:
+        condition: service_started
+      decision-registry:
         condition: service_started
 
   # ── Frontend apps ─────────────────────────────────────────────────────────────
