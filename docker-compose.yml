@@ -150,7 +150,6 @@ services:
     ports:
       - "3004:3004"
     environment:
-      ZkpProverUrl: "http://zkp-prover:3005"
       PatientApiUrl: "http://patient-api:3001"
       MfssiaUrl: "http://mfssia-ehealth:4000/api"
       DecisionRegistryUrl: "http://decision-registry:3010"
