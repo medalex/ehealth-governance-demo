@@ -84,10 +84,13 @@ services:
       retries: 5
       start_period: 15s
 
-  # ── On-chain decision registry (dedicated EVM, separate from the DKG chain) ──────
-  decision-registry:
+  # ── EVM: dedicated chain (separate from DKG) — Groth16 verifier, decision registry, DAO ──
+  evm:
     image: ghcr.io/medalex/ehealth-evm:latest
     pull_policy: always
+    environment:
+      DAO_MEMBERS: 3      # number of DAO voters (first N dev accounts)
+      DAO_PERCENT: 60     # quorum as % of members → threshold = ceil(members * percent / 100)
     ports:
       - "8546:8546"   # dedicated EVM RPC
       - "3010:3010"   # HTTP API
@@ -152,7 +155,7 @@ services:
     environment:
       PatientApiUrl: "http://patient-api:3001"
       MfssiaUrl: "http://mfssia-ehealth:4000/api"
-      DecisionRegistryUrl: "http://decision-registry:3010"
+      DecisionRegistryUrl: "http://evm:3010"
       PharmacyOrganizationId: "pharmacy-1"
     depends_on:
       mfssia-ehealth:
@@ -161,7 +164,7 @@ services:
         condition: service_started
       patient-api:
         condition: service_started
-      decision-registry:
+      evm:
         condition: service_started
 
   # ── Frontend apps ─────────────────────────────────────────────────────────────
