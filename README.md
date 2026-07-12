@@ -1,32 +1,40 @@
 # eHealth Governance Demo
 
-A blockchain-based electronic health record demo using OriginTrail DKG v8, Zero-Knowledge Proofs (Groth16), and a self-sovereign identity layer (MFSSIA).
+A blockchain-based electronic health record demo using OriginTrail DKG v8, Zero-Knowledge Proofs (Groth16), a self-sovereign identity layer (MFSSIA), and a k-of-n DAO that resolves semantic conflicts by governance vote.
 
 ---
 
 ## Architecture
 
 ```
-Patient Portal  Lab System  Hospital System  Pharmacy System
-    :3008           :3009         :3006            :3007
-      |               |             |                |
-  patient-api     lab-api      hospital-api    pharmacy-api
-    :3001           :3002         :3003            :3004
-                      |             |                |
-                      └─────────────┴────────────────┘
-                                    |
-                              zkp-prover :3005
-                          (Groth16 ZKP circuit)
-                                    |
-                      ┌─────────────┴────────────────┐
-                  mfssia-ehealth :4000           dkg-node
-                 (Governance API / DKG client)   :8545 / :8900
-                                    |
-                              PostgreSQL :5432
+ Patient Portal   Lab System   Hospital System   Pharmacy System
+     :3008           :3009          :3006             :3007
+       |               |              |                 |
+   patient-api      lab-api      hospital-api      pharmacy-api
+     :3001           :3002          :3003             :3004
+                       |              |                 |  verify + record
+                       └──────────────┤                 ▼
+                                      |            evm  :3010 / :8546
+                                zkp-prover :3005  ┌───────────────────────────┐
+                              (Groth16 proof) ───▶│ Groth16 on-chain verifier  │
+                                      |           │ Decision Registry (audit)  │
+                                      |           │ MinimalGovernance DAO → /dao│
+                                      |           └─────────────▲─────────────┘
+                        ┌─────────────┴───────────┐            │ propose / vote
+                  mfssia-ehealth :4000         dkg-node        │ (semantic conflicts:
+                 (Governance API, theory T,   :8545 / :8900    │  numeric bridges)
+                  bridges, SPARQL, DAO gate) ─────────────────┘
+                                    |         (OriginTrail DKG — anchors
+                              PostgreSQL :5432  policies, credentials, bridges)
 
                          Monitor + Governance UI
-                              ehealth-portal :3000
+                              ehealth-portal :3000     DAO monitor: :3010/dao
 ```
+
+**Three governance layers:**
+- **ZKP (privacy)** — `zkp-prover` proves a prescription is valid without revealing patient data.
+- **DKG (theory T)** — `mfssia-ehealth` anchors governance-approved policies, doctor credentials, and numeric alignment bridges in the OriginTrail knowledge graph.
+- **DAO (conflict resolution)** — `evm` runs a k-of-n `MinimalGovernance` contract. Semantic conflicts (e.g. a lab metric arriving in an unmapped unit) are auto-escalated: members vote on the missing bridge, and only DAO-approved bridges are published to the DKG. Live at `:3010/dao`.
 
 ---
 
@@ -61,7 +69,8 @@ docker compose ps
 |---|---|---|
 | `dkg-node` | 8545, 8900 | OriginTrail DKG v8 node with 5 local Hardhat blockchain nodes. Anchors all Knowledge Assets on-chain. |
 | `postgres` | 5432 | PostgreSQL database for MFSSIA |
-| `mfssia-ehealth` | 4000 | Governance API — publishes clinical policies and doctor credentials to DKG, runs SPARQL queries on the knowledge graph |
+| `mfssia-ehealth` | 4000 | Governance API — publishes clinical policies, doctor credentials and numeric bridges to DKG, runs SPARQL queries, and escalates semantic conflicts to the DAO |
+| `evm` | 3010, 8546 | Dedicated EVM (Ganache) hosting the Groth16 on-chain verifier, an append-only Decision Registry, and the `MinimalGovernance` DAO. Serves the DAO monitor at `/dao` (propose / vote / approve numeric bridges) |
 
 ### APIs
 
