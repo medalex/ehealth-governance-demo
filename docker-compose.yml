@@ -7,7 +7,7 @@ services:
     environment:
       AUTOHEAL_CONTAINER_LABEL: autoheal
       AUTOHEAL_INTERVAL: 15
-      AUTOHEAL_START_PERIOD: 300
+      AUTOHEAL_START_PERIOD: 360
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
 
@@ -26,8 +26,8 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:8900/info && curl -sf -X POST http://localhost:8545 -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_chainId\",\"params\":[],\"id\":1}' | grep -q '0x7a69'"]
       interval: 20s
       timeout: 10s
-      retries: 3
-      start_period: 180s
+      retries: 5
+      start_period: 360s     # DKG node boots 2-5 min (Rosetta) — keep "starting" so autoheal won't reset it mid-boot
 
   # ── PostgreSQL (for mfssia) ───────────────────────────────────────────────────
   postgres:
