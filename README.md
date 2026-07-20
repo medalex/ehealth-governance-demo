@@ -104,7 +104,7 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 - Allergies: none initially (add via the Hospital app to demo contraindication)
 - Consents: **none initially** — grant them in the Patient Portal (`hospital-1` to prescribe, `pharmacy-1` to dispense). Allow **~30 s** for DKG indexing after each grant, and confirm the **✓ in DKG** badge before using them.
 
-> Doctors are **pre-seeded and already in the MFSSIA physician registry** (✓ MFSSIA in the Hospital app) — there is no "register doctor" step. Clinical policies (dosage limits, the Metformin eGFR ≥ 30 rule) and the contraindication closure are **seeded into the DKG automatically** on MFSSIA startup. The **Age** field is not used by the circuit.
+> Doctors are **pre-seeded and already in the MFSSIA physician registry** (✓ MFSSIA in the Hospital app) — there is no "register doctor" step. The contraindication closure and the MFSSIA challenge set are seeded into the DKG on startup; **clinical policies are published manually via the Governance UI** (`http://localhost:3000/governance.html`, quick presets) — see Scenario 3. The **Age** field is not used by the circuit.
 
 ---
 
@@ -158,14 +158,22 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 ### Scenario 3 — Policy-based dosage block (ZKP FAIL via DKG governance)
 
-**Goal:** Show a governance policy (seeded into the DKG on MFSSIA startup) flowing into the circuit and blocking an over-limit prescription. No manual publishing is needed — confirm the seeded policies with `curl http://localhost:4000/api/rx-governance/policies` (Metformin max dose **20**, Penicillin 10, Amoxicillin 16, and *Metformin requires eGFR ≥ 30*).
+**Goal:** Show a governance policy published to the DKG flowing into the circuit and blocking an over-limit prescription.
+
+**Step 1 — Publish a dosage policy (Governance UI)**
+
+1. Open `http://localhost:3000/governance.html`
+2. Click the preset **"Metformin — block if adult dose > 2000 mg"**, then change **Threshold** to `20`
+3. Click **Publish to DKG** — the policy appears under **Policies in DKG** (or `curl http://localhost:4000/api/rx-governance/policies`)
+
+**Step 2 — Prescribe over the limit**
 
 1. Hospital app → **New Prescription**: `James Wilson`, Emily's UUID, Drug `Metformin`, Dosage `50`
 2. Click **Sign & Generate ZKP Proof** → **✗ FAIL**, with the reason shown to the doctor:
    `Dosage 50 exceeds the maximum 20 for Metformin`
    (Dosage `8` passes — the limit is 20.)
 
-The renal-function lab policy (*Metformin requires eGFR ≥ 30*, P6) is exercised in Scenario 4, where a low eGFR from a different unit triggers the DAO bridge.
+The renal-function lab policy (Metformin eGFR ≥ 30, P6) is exercised in Scenario 4.
 
 ---
 
