@@ -156,30 +156,29 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 ---
 
-### Scenario 3 — Policy-based dosage block (ZKP FAIL via DKG governance)
+### Scenario 3 — Policy-based dosage block (DAO → ZKP)
 
-**Goal:** Show a clinical policy going through **DAO governance** (a change to theory `T` must be proposed and voted) and then flowing into the ZKP circuit to block an over-limit prescription. Every policy is DAO-gated: publishing one that is not approved returns `403`.
+**Goal:** A clinical policy goes through **DAO governance** (proposed + voted) and then enforces in the ZKP circuit. Every policy is DAO-gated: publishing one that is not DAO-approved returns `403`. The DAO console and the Governance UI share the **same preset dropdown/buttons**, so picking the same preset in both hashes to the same policy — nothing to type.
 
 **Step 1 — Propose + vote (DAO console)**
 
-1. Open the DAO console `http://localhost:3010/dao` → **Propose Policy**:
-   Medication `Metformin`, Clinical condition `dosage`, Operator `<=`, Threshold `20`
-2. The proposal appears — **Vote** as DAO members until it reaches quorum (2 of 3) → **Approved**
+1. Open the DAO console `http://localhost:3010/dao` → **③ Propose policy** → pick **"Metformin — block if adult dose > 2000 mg"** from the preset dropdown → **Propose policy**
+2. In **Proposals**, **Vote** to quorum (2 of 3) → **Approved**
 
 **Step 2 — Publish the approved policy (Governance UI)**
 
-1. Open `http://localhost:3000/governance.html`; enter the **same** values (preset **"Metformin — block if adult dose > 2000 mg"**, set **Threshold** `20`) → **Publish to DKG**
+1. Open `http://localhost:3000/governance.html` → click the **same** preset **"Metformin — block if adult dose > 2000 mg"** → **Publish to DKG**
 2. It succeeds now (DAO-approved) and appears under **Policies in DKG** after **~30 s** (DKG indexing). Confirm: `curl http://localhost:4000/api/rx-governance/policies`
 
 **Step 3 — Prescribe over the limit**
 
-1. Hospital app → **New Prescription**: `James Wilson`, Emily's UUID, Drug `Metformin`, Dosage `50`
+1. Hospital app → **New Prescription**: `James Wilson`, Emily's UUID, Drug `Metformin`, Dosage `2500`
 2. **Sign & Generate ZKP Proof** → **✗ FAIL**, with the reason shown to the doctor:
-   `Dosage 50 exceeds the maximum 20 for Metformin`
-   (Dosage `8` passes — the limit is 20.)
+   `Dosage 2500 exceeds the maximum 2000 for Metformin`
+   (Dosage `8` passes — the limit is 2000.)
 
-> The propose (Step 1) and publish (Step 2) must use **identical** fields — the DAO approves a specific policy hash (medication, condition, operator, threshold). A CLI equivalent: `POST /api/rx-governance/policies/propose` → `POST http://localhost:3010/governance/vote {id,member}` ×2 → `POST /api/rx-governance/policies`.
-The renal-function lab policy (Metformin eGFR ≥ 30, P6) is exercised in Scenario 4.
+> Propose (Step 1) and publish (Step 2) must be the **same preset** — the DAO approves a specific policy hash (code, medication, condition, operator, threshold). CLI equivalent: `POST /api/rx-governance/policies/propose` → `POST http://localhost:3010/governance/vote {id,member}` ×2 → `POST /api/rx-governance/policies`.
+Scenario 4 reuses the **Metformin — block if eGFR < 30** preset to show a numeric unit conflict auto-resolved by a DAO bridge.
 
 ---
 
