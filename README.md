@@ -210,9 +210,9 @@ cannot be evaluated (open-world: *undefined*, not *false*) → conflict.
 
 **Steps (all through the UI):**
 
-1. **Establish the governed scale (once).** In the **DAO console** (`http://localhost:3010/dao`),
-   if eGFR is not yet governed, use **② Propose bridge** with the canonical anchor
-   (`eGFR / mL/min/1.73m² / mL/min/1.73m² / 1`), vote **M0** + **M1** → **Publish → DKG**.
+1. **Establish the governed scale (once).** In the **DAO console** (`http://localhost:3010/dao`) →
+   **② Propose bridge**, pick the **"eGFR — canonical scale (identity ×1)"** preset from the dropdown →
+   **Propose bridge**, vote **M0** + **M1** → **Publish → DKG**.
    This fixes CKD-EPI `mL/min/1.73m²` as eGFR's governed scale. *(For a fresh stack this can also
    be pre-seeded via `POST /rx-governance/bridges?direct=true`.)*
 
