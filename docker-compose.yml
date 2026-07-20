@@ -27,7 +27,7 @@ services:
       interval: 20s
       timeout: 10s
       retries: 5
-      start_period: 360s     # DKG node boots 2-5 min (Rosetta) — keep "starting" so autoheal won't reset it mid-boot
+      start_period: 900s     # DKG boots a full local net (2 chains + contract deploy + 5 ot-nodes); keep "starting" the whole time so autoheal won't reset it mid-boot. Must be >= entrypoint BOOTSTRAP_TIMEOUT (900s).
 
   # ── PostgreSQL (for mfssia) ───────────────────────────────────────────────────
   postgres:
