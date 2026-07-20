@@ -104,7 +104,7 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 - Allergies: none initially (add via the Hospital app to demo contraindication)
 - Consents: **none initially** — grant them in the Patient Portal (`hospital-1` to prescribe, `pharmacy-1` to dispense). Allow **~30 s** for DKG indexing after each grant, and confirm the **✓ in DKG** badge before using them.
 
-> Doctors are **pre-seeded and already in the MFSSIA physician registry** (✓ MFSSIA in the Hospital app) — there is no "register doctor" step. The contraindication closure and the MFSSIA challenge set are seeded into the DKG on startup. **Clinical policies are DAO-governed** — proposed and voted through the DAO console (`http://localhost:3010/dao`), then published to the DKG via the Governance UI (see Scenario 3); a policy that is not DAO-approved cannot be published (`403`). The **Age** field is not used by the circuit.
+> Doctors are **pre-seeded and already in the MFSSIA physician registry** (✓ MFSSIA in the Hospital app) — there is no "register doctor" step. The contraindication closure and the MFSSIA challenge set are seeded into the DKG on startup. **Clinical policies are DAO-governed** — proposed, voted and published to the DKG entirely in the DAO console (`http://localhost:3010/dao`); a policy cannot be anchored until the DAO approves it (see Scenario 3). The Governance UI (`:3000/governance.html`) is a read-only DKG viewer. The **Age** field is not used by the circuit.
 
 ---
 
@@ -158,17 +158,17 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 ### Scenario 3 — Policy-based dosage block (DAO → ZKP)
 
-**Goal:** A clinical policy goes through **DAO governance** (proposed + voted) and then enforces in the ZKP circuit. Every policy is DAO-gated: publishing one that is not DAO-approved returns `403`. The DAO console and the Governance UI share the **same preset dropdown/buttons**, so picking the same preset in both hashes to the same policy — nothing to type.
+**Goal:** A clinical policy goes through **DAO governance** (proposed → voted → published) and then enforces in the ZKP circuit. Every policy is DAO-gated: it cannot be anchored in the DKG until the DAO approves it. **Everything happens in the DAO console** — the Governance UI is just a read-only DKG viewer.
 
-**Step 1 — Propose + vote (DAO console)**
+**Step 1 — Propose, vote and publish (DAO console)**
 
 1. Open the DAO console `http://localhost:3010/dao` → **③ Propose policy** → pick **"Metformin — block if adult dose > 2000 mg"** from the preset dropdown → **Propose policy**
-2. In **Proposals**, **Vote** to quorum (2 of 3) → **Approved**
+2. In **Proposals**, **Vote** to quorum (2 of 3) → status becomes **Approved**
+3. Click **Publish → DKG** on the approved proposal — it anchors the policy in the DKG
 
-**Step 2 — Publish the approved policy (Governance UI)**
+**Step 2 — Confirm it is live**
 
-1. Open `http://localhost:3000/governance.html` → click the **same** preset **"Metformin — block if adult dose > 2000 mg"** → **Publish to DKG**
-2. It succeeds now (DAO-approved) and appears under **Policies in DKG** after **~30 s** (DKG indexing). Confirm: `curl http://localhost:4000/api/rx-governance/policies`
+Wait **~30 s** (DKG indexing), then check the Governance viewer `http://localhost:3000/governance.html` → **Policies in DKG**, or `curl http://localhost:4000/api/rx-governance/policies`.
 
 **Step 3 — Prescribe over the limit**
 
@@ -177,7 +177,7 @@ All scenarios use the pre-seeded patient **Emily Carter**:
    `Dosage 2500 exceeds the maximum 2000 for Metformin`
    (Dosage `8` passes — the limit is 2000.)
 
-> Propose (Step 1) and publish (Step 2) must be the **same preset** — the DAO approves a specific policy hash (code, medication, condition, operator, threshold). CLI equivalent: `POST /api/rx-governance/policies/propose` → `POST http://localhost:3010/governance/vote {id,member}` ×2 → `POST /api/rx-governance/policies`.
+> CLI equivalent of Step 1: `POST /api/rx-governance/policies/propose` → `POST http://localhost:3010/governance/vote {id,member}` ×2 → `POST /api/rx-governance/policies`.
 Scenario 4 reuses the **Metformin — block if eGFR < 30** preset to show a numeric unit conflict auto-resolved by a DAO bridge.
 
 ---
