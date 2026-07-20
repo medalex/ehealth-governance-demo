@@ -141,7 +141,12 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 **Goal:** Show that the ZKP circuit rejects a prescription when the patient is allergic to the drug, and that a rejected decision is **never issued and never reaches the pharmacy**.
 
-1. In the Hospital app → **Patient Allergies**, add **Penicillin** for Emily (`00000000-0000-0000-0000-000000000001`)
+1. In the Hospital app → **Patient Allergies**, fill **all** fields and click **Add Allergy**:
+   - Patient ID: `00000000-0000-0000-0000-000000000001`
+   - Substance: `Penicillin`
+   - **Code: `372687004`** — required; the greyed `372687004 / PCN-001` is only a placeholder, type the code in
+   - Code system: `SNOMED-CT`
+   - Source: `hospital-1`
 2. **New Prescription**: `James Wilson`, Emily's UUID, Drug `Amoxicillin` (a β-lactam — a Penicillin allergy also contraindicates it, proven against the DKG contraindication closure), Dosage `8`
 3. Click **Sign & Generate ZKP Proof**
 4. Result: **ZKP ✗ FAIL** — the circuit detected a contraindication (`Penicillin allergy contraindicates Amoxicillin`). The API responds **`422 Unprocessable Entity`** with `outcome: false` and the rejection reasons.
