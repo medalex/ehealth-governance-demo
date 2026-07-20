@@ -151,9 +151,9 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 ---
 
-### Scenario 2 — Allergy block (ZKP FAIL)
+### Scenario 2 — Allergy block (ZKP FAIL → not issued)
 
-**Goal:** Show that the ZKP circuit rejects a prescription when the patient is allergic to the drug.
+**Goal:** Show that the ZKP circuit rejects a prescription when the patient is allergic to the drug, and that a rejected decision is **never issued and never reaches the pharmacy**.
 
 1. Open `http://localhost:3006` (Hospital app) → **Prescriptions** tab
 2. Fill in:
@@ -162,8 +162,10 @@ All scenarios use the pre-seeded patient **Emily Carter**:
    - Dosage: `500mg`
    - Patient age: `41`
 3. Submit
-4. Result: `outcome: false` — the ZKP circuit detected a contraindication (Emily has a Penicillin allergy in the hospital DB)
-5. The prescription is saved with `outcome: false`; the Pharmacy UI will reject dispensing it
+4. Result: **ZKP ✗ FAIL** — the circuit detected a contraindication (Emily has a Penicillin allergy). The API responds **`422 Unprocessable Entity`** with `outcome: false` and the rejection reasons.
+5. The prescription is **not issued**: the hospital keeps a local audit record of the rejected decision (outcome + reasons), but the UI shows it as *rejected* and offers **no "→ Send to Pharmacy" action**. A rejected proof therefore cannot be dispensed — and even if replayed to the pharmacy, its on-chain re-verification fails (defence in depth).
+
+> Only an **accepted** proof returns `201 Created` and becomes a dispensable prescription with a "→ Send to Pharmacy" button.
 
 ---
 
@@ -200,56 +202,155 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 ---
 
-### Scenario 4 — Consent enforcement
-
-**Goal:** Show that APIs block access if the patient has not granted consent to the requesting organisation.
-
-The consent check is enforced at the API level by querying `patient-api` before saving any data.
-
-**Test via REST (no UI needed):**
-
-```bash
-# This should return 403 — unknown patient has no consent for lab-1
-curl -s -X POST http://localhost:3002/api/results \
-  -H "Content-Type: application/json" \
-  -d '{
-    "patientId": "00000000-0000-0000-0000-000000000099",
-    "loincCode": "62238-1",
-    "metric": "eGFR",
-    "formula": 0,
-    "value": 85,
-    "unit": "mL/min/1.73m²",
-    "measuredBy": "Lab Tech"
-  }'
-# → {"error":"Patient ... has not granted consent to lab-1"}
-
-# This should return 201 — Emily Carter has consent for lab-1
-curl -s -X POST http://localhost:3002/api/results \
-  -H "Content-Type: application/json" \
-  -d '{
-    "patientId": "00000000-0000-0000-0000-000000000001",
-    "loincCode": "62238-1",
-    "metric": "eGFR",
-    "formula": 0,
-    "value": 85,
-    "unit": "mL/min/1.73m²",
-    "measuredBy": "Lab Tech"
-  }'
-# → 201 Created
-```
-
-Same enforcement applies on `POST /api/prescriptions` (hospital-api, org `hospital-1`) and `POST /{id}/dispense` (pharmacy-api, org `pharmacy-1`).
+> **Consent enforcement** (patient must grant consent to the requesting org before any
+> data access) is demonstrated end-to-end through the UI in the Live table — **D2**
+> (authorization gate, `C-DOC-AUTHZ`) and **D8** (consent-first dispensing). The same check
+> guards `POST /api/results` (lab-api), `POST /api/prescriptions` (hospital-api) and
+> `POST /{id}/dispense` (pharmacy-api).
 
 ---
 
-### Scenario 5 — DKG governance: query and inspect Knowledge Assets
+### Scenario 4 — Numerical semantic conflict → DAO auto-resolution (eGFR: CKD-EPI vs Cockcroft-Gault)
 
-**Goal:** Show the DKG knowledge graph with published policies and credentials.
+**Goal:** This is the paper's running-case numerical conflict. The hospital's Metformin policy
+requires **eGFR ≥ 30** computed via **CKD-EPI** in `mL/min/1.73m²`, while an independent
+laboratory reports renal function as **creatinine clearance via Cockcroft-Gault** in `mL/min`.
+Both describe the same clinical quantity but cannot be compared against the policy threshold
+without an alignment axiom. When the hospital assembles the data for a prescription, the mismatch
+surfaces as a **numeric semantic conflict**, is **auto-escalated to the DAO**, and is resolved by a
+**k-of-n governance vote** that publishes the missing numeric bridge to the DKG — after which the
+same prescription proceeds. The conflict is detected **inside the running prescription flow**.
 
-1. Open `http://localhost:3000/governance.html` (Governance UI)
-2. **Query Policies** tab — runs a SPARQL query against the DKG and lists all anchored clinical policies
-3. **Query Credentials** tab — lists all doctor credentials registered on-chain
-4. **Read by UAL** — paste any UAL from the monitor or a previous publish and read the raw Knowledge Asset
+**Why it conflicts (theory T).** A metric is "under numeric governance" once theory T fixes its
+governed scale. The DKG holds an eGFR canonical-scale axiom (`mL/min/1.73m²`, CKD-EPI), so a value
+already on that scale passes untouched; a Cockcroft-Gault value in `mL/min` has no bridge to it and
+cannot be evaluated (open-world: *undefined*, not *false*) → conflict.
+
+**Actors / ports:** DAO console `:3010/dao` · Lab app `:3009` · Hospital app `:3006`.
+
+**Steps (all through the UI):**
+
+1. **Establish the governed scale (once).** In the **DAO console** (`http://localhost:3010/dao`),
+   if eGFR is not yet governed, use **② Propose bridge** with the canonical anchor
+   (`eGFR / mL/min/1.73m² / mL/min/1.73m² / 1`), vote **M0** + **M1** → **Publish → DKG**.
+   This fixes CKD-EPI `mL/min/1.73m²` as eGFR's governed scale. *(For a fresh stack this can also
+   be pre-seeded via `POST /rx-governance/bridges?direct=true`.)*
+
+2. **Two labs report eGFR on different scales.** In the **Lab app** (`:3009`), enter Emily's UUID and
+   add two results using the LOINC dropdown:
+   - **`33914-3 · eGFR CKD-EPI`** — value `45`, unit `mL/min/1.73m²` → Save
+   - **`2164-2 · eGFR Cockcroft-Gault`** — value `57`, unit `mL/min` → Save
+
+3. **Attempt the prescription.** In the **Hospital app** (`:3006`), issue **Metformin** for Emily.
+   The CKD-EPI value reconciles; the **Cockcroft-Gault `mL/min` value has no bridge → HTTP 409**:
+
+   ```json
+   {
+     "error": "Semantic conflict on 'eGFR': 'mL/min' has no numeric bridge to the governed scale 'mL/min/1.73m²'.",
+     "conflict": true,
+     "metric": "eGFR",
+     "governedUnit": "mL/min/1.73m²",
+     "escalatedToDao": true,
+     "proposalId": 0,
+     "resolution": "Approve the auto-created bridge proposal in the DAO, publish it, then re-issue the prescription."
+   }
+   ```
+
+   The Hospital app shows **⚠ Semantic conflict** with a link to the DAO console. mfssia has already
+   opened the missing bridge as a DAO proposal, with a candidate factor (`0.91`, a representative
+   body-surface-area normalisation) from the reference table.
+
+4. **Resolve via the DAO.** In the **DAO console**, the auto-created proposal
+   `bridge eGFR mL/min→mL/min/1.73m² ×0.91` is listed. Vote **M0** + **M1** → `✓ approved` →
+   **Publish → DKG**. The Cockcroft-Gault→CKD-EPI bridge is now part of theory T.
+
+5. **Re-issue the prescription.** Issue Metformin again. Both eGFR values now normalise onto
+   `mL/min/1.73m²`, the conflict is gone, and the reconciled value feeds the `Pol(Metformin, eGFR, ≥, 30)`
+   check as the flow proceeds to ZKP proof generation.
+
+**REST equivalent (what the hospital calls internally):**
+
+```bash
+# CKD-EPI value — reconciles (200)
+curl -s -X POST http://localhost:4000/api/rx-governance/bridges/normalize \
+  -H "Content-Type: application/json" \
+  -d '{"metric":"eGFR","value":45,"unit":"mL/min/1.73m²"}'
+# → {"normalized":45,"governedUnit":"mL/min/1.73m²"}
+
+# Cockcroft-Gault value — conflict, auto-escalated to the DAO (409)
+curl -s -X POST http://localhost:4000/api/rx-governance/bridges/normalize \
+  -H "Content-Type: application/json" \
+  -d '{"metric":"eGFR","value":57,"unit":"mL/min"}'
+# → 409 { "escalation": { "escalated": true, "proposalId": 0,
+#          "bridge": { "fromUnit":"mL/min","toUnit":"mL/min/1.73m²","factor":0.91 } } }
+```
+
+> **Note.** Metric/unit matching is case- and micro-sign-insensitive (`eGFR`≈`egfr`,
+> `μmol/L`≈`µmol/L`≈`umol/L`), so values entered from the Lab app dropdowns reconcile against theory T
+> without manual normalisation. The candidate factor is only a *suggestion* — the DAO members verify
+> and vote; the reference table never decides authoritatively. Concentration bridges
+> (e.g. `creatinine μmol/L → mg/dL`) work identically as a generalisation of the same mechanism.
+
+---
+
+### Scenario 5 — Terminological semantic conflict → DAO auto-resolution (SNOMED-CT vs local vocab)
+
+**Goal:** The paper's second data-level conflict. A private laboratory annotates a patient's
+allergy under its **local allergen vocabulary**, while the governed knowledge base recognises the
+concept via a governance-approved rx concept. Without an **rx:alignsTo** axiom, the system cannot
+decide whether the locally-coded allergy denotes the governed concept — so the dependent
+contraindication statement is *undefined*. The missing alignment is **auto-escalated to the DAO**,
+approved by vote, and published as a **terminology bridge** to the DKG. SNOMED-CT is treated as the
+canonical system and passes through unchanged.
+
+**Actors / ports:** DAO console `:3010/dao` · Hospital app `:3006`.
+
+**Steps (all through the UI):**
+
+1. **Record a locally-coded allergy.** In the **Hospital app** (`:3006`) → **Allergies** tab, add for
+   Emily: Substance `Penicillin`, Code `PCN-001`, **Code system `AllergyDB-Local`**, Source e.g.
+   `Regional Lab`. (A `SNOMED-CT`-coded allergy would be canonical and would *not* conflict.)
+
+2. **Attempt the prescription.** Issue any prescription for Emily. While assembling the allergy
+   evidence, the hospital resolves each non-canonical code via mfssia. `AllergyDB-Local:PCN-001` has
+   no alignment axiom → **HTTP 409**:
+
+   ```json
+   {
+     "error": "Terminological conflict on allergy 'Penicillin': code 'AllergyDB-Local:PCN-001' has no alignment to a governed concept.",
+     "conflict": true,
+     "conflictType": "terminology",
+     "codeSystem": "AllergyDB-Local",
+     "code": "PCN-001",
+     "escalatedToDao": true,
+     "proposalId": 1
+   }
+   ```
+
+   mfssia has opened the missing alignment as a DAO proposal, with a candidate concept
+   (`rx:Penicillin`) from the reference table.
+
+3. **Resolve via the DAO.** In the **DAO console**, the proposal `align AllergyDB-Local:PCN-001 → rx:Penicillin`
+   is listed (form **④**). Vote **M0** + **M1** → `✓ approved` → **Publish → DKG**. The rx:alignsTo
+   axiom is now in theory T.
+
+4. **Re-issue the prescription.** The local code now resolves to `rx:Penicillin`; the conflict is
+   gone and the prescription proceeds (and, since Penicillin ⊑ β-lactam, the contraindication check
+   then applies to β-lactam drugs as in Scenario 2).
+
+**REST equivalent (what the hospital calls internally):**
+
+```bash
+# Local code with no alignment — conflict, auto-escalated to the DAO (409)
+curl -s -X POST http://localhost:4000/api/rx-governance/terminology/align \
+  -H "Content-Type: application/json" \
+  -d '{"system":"AllergyDB-Local","code":"PCN-001","term":"penicillin"}'
+# → 409 { "escalation": { "proposalId": 1,
+#          "bridge": { "system":"AllergyDB-Local","code":"PCN-001","alignsTo":"rx:Penicillin" } } }
+
+# After DAO approval + publish, the same call resolves (200)
+# → {"alignsTo":"https://mfssia.io/ontology/prescription#Penicillin"}
+```
 
 ---
 
@@ -279,10 +380,14 @@ Open `http://localhost:3000` to see:
 - Latest ZKP proof details (statement hash, public signals)
 - DKG doctor credentials
 
-Open `http://localhost:3000/governance.html` to:
-- Publish clinical policies to DKG (drug dosage limits, clinical conditions)
-- Query all Knowledge Assets via SPARQL
-- Read individual assets by UAL
+Open `http://localhost:3000/governance.html` to inspect the DKG knowledge graph:
+- **Query Policies** — SPARQL over all anchored `rx:ClinicalPolicy` assets
+- **Query Credentials** — all doctor credentials registered on-chain (root_M)
+- **Read by UAL** — read any raw Knowledge Asset (policy, credential, numeric/terminology bridge, lab result, allergy)
+
+Open `http://localhost:3010/dao` for the **DAO Governance Console** — propose/vote/publish
+numeric bridges, terminology alignments and clinical policies, and watch on-chain
+proposal/vote/approval events live.
 
 ---
 
@@ -316,3 +421,5 @@ docker compose down
 | D7 | Replay Attack | S6 / R8 | 1. Complete a valid prescription issuance and dispensing flow.<br>2. Copy the generated proof or prescription ID.<br>3. Attempt to dispense the same prescription again. | ❌ On-chain **409 Conflict** (Replay detected) |
 | D8 | Consent-First / On-Chain Enforcement | New | 1. Open the Patient Portal.<br>2. Remove consent for **pharmacy-1**.<br>3. Generate a valid prescription in the Hospital portal.<br>4. Verify it in the Pharmacy portal.<br>5. Attempt to dispense without consent.<br>6. Grant consent back.<br>7. Retry dispensing. | First attempt → **403 Forbidden**, no blockchain record.<br>Second attempt → successful dispense with blockchain entry created |
 | D9 | Immutable Audit | R9 | 1. Open the Blockchain Monitor.<br>2. Locate a previously issued or dispensed prescription.<br>3. Click the corresponding on-chain log entry.<br>4. Inspect the audit metadata. | Shows `stmtHash`, outcome, transaction hash, medication; confirms **no patient data stored on-chain** |
+| D10 | Numerical Conflict → DAO | S6 | 1. In the **DAO console** (`:3010/dao`) ensure the eGFR canonical anchor is approved (governed scale = CKD-EPI `mL/min/1.73m²`).<br>2. In the **Lab app** (`:3009`) add Emily's eGFR from **CKD-EPI** (`45 mL/min/1.73m²`) and **Cockcroft-Gault** (`57 mL/min`).<br>3. In the **Hospital portal** attempt a **Metformin** prescription.<br>4. In the **DAO console** vote **M0**+**M1** on the auto-created `eGFR mL/min→mL/min/1.73m² ×0.91` bridge, then **Publish → DKG**.<br>5. Re-issue the prescription. | Step 3 → **409 numeric conflict**, bridge auto-escalated to DAO.<br>After step 4 (k-of-n approval) step 5 → reconciled eGFR feeds `Pol(Metformin,eGFR,≥,30)`, flow proceeds to ZKP |
+| D11 | Terminological Conflict → DAO | S6 | 1. In the **Hospital portal** → Allergies, add Emily's `Penicillin` allergy with Code `PCN-001`, **Code system `AllergyDB-Local`**.<br>2. Attempt a prescription for Emily.<br>3. In the **DAO console** vote **M0**+**M1** on the auto-created `align AllergyDB-Local:PCN-001 → rx:Penicillin` proposal (form ④), then **Publish → DKG**.<br>4. Re-issue the prescription. | Step 2 → **409 terminological conflict**, rx:alignsTo auto-escalated to DAO.<br>After step 3 the local code resolves to rx:Penicillin, flow proceeds (and β-lactam contraindication then applies) |
