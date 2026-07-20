@@ -88,7 +88,7 @@ docker compose ps
 |---|---|---|
 | `patient-app` | 3008 | Patient portal — view personal medical records and history |
 | `lab-app` | 3009 | Lab technician UI — submit lab results for a patient |
-| `hospital-app` | 3006 | Doctor UI — issue prescriptions with ZKP proof generation, manage allergy records, register doctor credentials on DKG |
+| `hospital-app` | 3006 | Doctor UI — issue prescriptions with ZKP proof generation and manage allergy records (doctors are pre-seeded in the MFSSIA registry) |
 | `pharmacy-app` | 3007 | Pharmacist UI — receive and verify prescriptions |
 | `ehealth-portal` | 3000 | Real-time system monitor and DKG governance UI (publish/query clinical policies) |
 
@@ -100,9 +100,11 @@ docker compose ps
 
 All scenarios use the pre-seeded patient **Emily Carter**:
 - Patient ID: `00000000-0000-0000-0000-000000000001`
-- Date of birth: 1985-03-15 (age 41)
-- Allergies: **Penicillin** (seeded in hospital DB)
-- Active consents: `hospital-1`, `lab-1`, `pharmacy-1`
+- Date of birth: 1985-03-15
+- Allergies: none initially (add via the Hospital app to demo contraindication)
+- Consents: **none initially** — grant them in the Patient Portal (`hospital-1` to prescribe, `pharmacy-1` to dispense). Allow **~30 s** for DKG indexing after each grant, and confirm the **✓ in DKG** badge before using them.
+
+> Doctors are **pre-seeded and already in the MFSSIA physician registry** (✓ MFSSIA in the Hospital app) — there is no "register doctor" step. Clinical policies (dosage limits, the Metformin eGFR ≥ 30 rule) and the contraindication closure are **seeded into the DKG automatically** on MFSSIA startup. The **Age** field is not used by the circuit.
 
 ---
 
@@ -110,44 +112,28 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 **Goal:** Show the full end-to-end flow with a valid prescription that passes all ZKP checks.
 
-**Step 1 — Register a doctor credential on DKG**
+**Step 1 — Grant consent (Patient Portal)**
 
-1. Open `http://localhost:3006` (Hospital app)
-2. Go to **Doctors** tab → select a doctor → click **Register on DKG**
-3. Wait for the UAL to appear — this anchors the doctor's credential to the blockchain
+1. Open `http://localhost:3008` (Patient Portal) → **Emily Carter** → **Consents**
+2. Grant `hospital-1` and `pharmacy-1`; wait ~30 s and confirm each shows **✓ in DKG**
+3. Copy Emily's patient ID with the 📋 button
 
-**Step 2 — Submit a lab result**
+**Step 2 — Issue a prescription**
 
-1. Open `http://localhost:3009` (Lab app)
-2. Fill in:
-   - Patient ID: `00000000-0000-0000-0000-000000000001`
-   - LOINC code: `62238-1` (eGFR)
-   - Metric: `eGFR`
-   - Formula: `CKD-EPI` (enum value `0`)
-   - Value: `85`
-   - Unit: `mL/min/1.73m²`
-3. Submit — the result is saved and published as a Knowledge Asset to DKG
+1. Open `http://localhost:3006` (Hospital app) → **New Prescription**
+2. Doctor: `James Wilson`; Patient ID: *(paste Emily's UUID)*; Drug: `Metformin`; Dosage: `8`
+3. Click **Sign & Generate ZKP Proof**
+4. The MFSSIA gate runs first (C-DOC-AUTH + C-DOC-AUTHZ), then the prover runs the Groth16 circuit (credential ∈ registry, no contraindication, dose ≤ max, lab policy, nonce)
+5. Result: **✓ PASS — Metformin 8**
 
-**Step 3 — Issue a prescription**
+**Step 3 — Send to pharmacy, verify and dispense**
 
-1. Open `http://localhost:3006` (Hospital app) → **Prescriptions** tab
-2. Fill in:
-   - Patient ID: `00000000-0000-0000-0000-000000000001`
-   - Drug ID: `105` (Metformin)
-   - Dosage: `500mg`
-   - Patient age: `41`
-3. Submit
-4. The ZKP prover runs the Groth16 circuit — checks drug approval, no Penicillin allergy on Metformin, dosage within default limit (65535 mg)
-5. Result: `outcome: true` — prescription created with a valid ZKP proof
+1. Click **→ Send to Pharmacy**
+2. Open `http://localhost:3007` (Pharmacy app) → find the prescription → **Verify**
+   (public inputs are pinned to DKG and the proof is verified **on-chain**; no registry write yet)
+3. Click **Dispense** — the pharmacy checks the `pharmacy-1` consent, then records the decision in the **on-chain registry** and marks it Dispensed
 
-**Step 4 — Send to pharmacy and dispense**
-
-1. In Hospital app — click **Send to Pharmacy** on the prescription
-2. Open `http://localhost:3007` (Pharmacy app)
-3. Find the prescription → click **Verify** (re-verifies ZKP proof locally)
-4. Click **Dispense** — prescription is marked as dispensed
-
-**Monitor:** Open `http://localhost:3000` — the Event Timeline should show the ZKP PASS event with statement hash.
+**Monitor:** Open `http://localhost:3000` — the timeline shows the ZKP PASS, the MFSSIA access-gate grant, and the **On-Chain Decision Log** entry (ACCEPT) that appears only after dispensing. Click it for details.
 
 ---
 
@@ -155,14 +141,10 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 **Goal:** Show that the ZKP circuit rejects a prescription when the patient is allergic to the drug, and that a rejected decision is **never issued and never reaches the pharmacy**.
 
-1. Open `http://localhost:3006` (Hospital app) → **Prescriptions** tab
-2. Fill in:
-   - Patient ID: `00000000-0000-0000-0000-000000000001`
-   - Drug ID: `103` (Penicillin)
-   - Dosage: `500mg`
-   - Patient age: `41`
-3. Submit
-4. Result: **ZKP ✗ FAIL** — the circuit detected a contraindication (Emily has a Penicillin allergy). The API responds **`422 Unprocessable Entity`** with `outcome: false` and the rejection reasons.
+1. In the Hospital app → **Patient Allergies**, add **Penicillin** for Emily (`00000000-0000-0000-0000-000000000001`)
+2. **New Prescription**: `James Wilson`, Emily's UUID, Drug `Amoxicillin` (a β-lactam — a Penicillin allergy also contraindicates it, proven against the DKG contraindication closure), Dosage `8`
+3. Click **Sign & Generate ZKP Proof**
+4. Result: **ZKP ✗ FAIL** — the circuit detected a contraindication (`Penicillin allergy contraindicates Amoxicillin`). The API responds **`422 Unprocessable Entity`** with `outcome: false` and the rejection reasons.
 5. The prescription is **not issued**: the hospital keeps a local audit record of the rejected decision (outcome + reasons), but the UI shows it as *rejected* and offers **no "→ Send to Pharmacy" action**. A rejected proof therefore cannot be dispensed — and even if replayed to the pharmacy, its on-chain re-verification fails (defence in depth).
 
 > Only an **accepted** proof returns `201 Created` and becomes a dispensable prescription with a "→ Send to Pharmacy" button.
@@ -171,34 +153,14 @@ All scenarios use the pre-seeded patient **Emily Carter**:
 
 ### Scenario 3 — Policy-based dosage block (ZKP FAIL via DKG governance)
 
-**Goal:** Show how a clinical policy published to DKG flows into the ZKP prover and blocks an over-limit prescription.
+**Goal:** Show a governance policy (seeded into the DKG on MFSSIA startup) flowing into the circuit and blocking an over-limit prescription. No manual publishing is needed — confirm the seeded policies with `curl http://localhost:4000/api/rx-governance/policies` (Metformin max dose **20**, Penicillin 10, Amoxicillin 16, and *Metformin requires eGFR ≥ 30*).
 
-**Step 1 — Publish a dosage restriction policy**
+1. Hospital app → **New Prescription**: `James Wilson`, Emily's UUID, Drug `Metformin`, Dosage `50`
+2. Click **Sign & Generate ZKP Proof** → **✗ FAIL**, with the reason shown to the doctor:
+   `Dosage 50 exceeds the maximum 20 for Metformin`
+   (Dosage `8` passes — the limit is 20.)
 
-1. Open `http://localhost:3000/governance.html` (Governance UI)
-2. Go to **Publish Policy** tab
-3. Fill in:
-   - Policy ID: `pol:metformin-egfr`
-   - Medication: `metformin`
-   - Clinical condition: `eGFR`
-   - Operator: `>=`
-   - Threshold: `30`
-   - Max dosage: `200` (mg — lower than the default 65535)
-4. Click **Publish to DKG** — the policy is anchored as a Knowledge Asset on the blockchain
-
-**Step 2 — Issue a high-dosage Metformin prescription**
-
-1. Open `http://localhost:3006` (Hospital app) → **Prescriptions** tab
-2. Fill in:
-   - Patient ID: `00000000-0000-0000-0000-000000000001`
-   - Drug ID: `105` (Metformin)
-   - Dosage: `500mg`
-   - Patient age: `41`
-3. Submit
-4. The hospital-api fetches the active policy from DKG (threshold: 200 mg), passes it to the ZKP prover
-5. Result: `outcome: false` — the Groth16 circuit rejects `500mg > 200mg` policy limit
-
-**To restore normal behavior** — publish a new policy with max dosage `65535` (or `0` = no limit), or restart `hospital-api` to clear cached policies.
+The renal-function lab policy (*Metformin requires eGFR ≥ 30*, P6) is exercised in Scenario 4, where a low eGFR from a different unit triggers the DAO bridge.
 
 ---
 
